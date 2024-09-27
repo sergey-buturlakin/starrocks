@@ -1070,11 +1070,28 @@ public class StmtExecutor {
         } else if (isSchedulerExplain) {
             // Do nothing.
         } else if (parsedStmt.isExplain()) {
+<<<<<<< HEAD
             handleExplainStmt(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.SELECT));
+=======
+            String explainString = buildExplainString(execPlan, ResourceGroupClassifier.QueryType.SELECT,
+                    parsedStmt.getExplainLevel());
+            if (executeInFe) {
+                explainString = "EXECUTE IN FE\n" + explainString;
+            }
+            handleExplainStmt(explainString);
+>>>>>>> 92dfb5d4dc ([Enhancement] add explain costs in query detail (#51439))
             return;
         }
+
+        // Generate a query plan for query detail
+        // Explaining internal table is very quick, we prefer to use EXPLAIN COSTS
+        // But explaining external table is expensive, may need to access lots of metadata, so have to use EXPLAIN
         if (context.getQueryDetail() != null) {
-            context.getQueryDetail().setExplain(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.SELECT));
+            StatementBase.ExplainLevel level = AnalyzerUtils.hasExternalTables(parsedStmt) ?
+                    StatementBase.ExplainLevel.defaultValue() :
+                    StatementBase.ExplainLevel.parse(Config.query_detail_explain_level);
+            context.getQueryDetail().setExplain(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.SELECT,
+                    level));
         }
 
         StatementBase queryStmt = parsedStmt;
@@ -1621,7 +1638,8 @@ public class StmtExecutor {
         context.getState().setEof();
     }
 
-    private String buildExplainString(ExecPlan execPlan, ResourceGroupClassifier.QueryType queryType) {
+    private String buildExplainString(ExecPlan execPlan, ResourceGroupClassifier.QueryType queryType,
+                                      StatementBase.ExplainLevel explainLevel) {
         String explainString = "";
         if (parsedStmt.getExplainLevel() == StatementBase.ExplainLevel.VERBOSE) {
             TWorkGroup resourceGroup = CoordinatorPreprocessor.prepareResourceGroup(context, queryType);
@@ -1644,7 +1662,16 @@ public class StmtExecutor {
             } else if (parsedStmt.getTraceMode() == Tracers.Mode.REASON) {
                 explainString += Tracers.printReasons();
             } else {
+<<<<<<< HEAD
                 explainString += execPlan.getExplainString(parsedStmt.getExplainLevel());
+=======
+                OperatorTuningGuides.OptimizedRecord optimizedRecord = PlanTuningAdvisor.getInstance()
+                        .getOptimizedRecord(context.getQueryId());
+                if (optimizedRecord != null) {
+                    explainString += optimizedRecord.getExplainString();
+                }
+                explainString += execPlan.getExplainString(explainLevel);
+>>>>>>> 92dfb5d4dc ([Enhancement] add explain costs in query detail (#51439))
             }
         }
         return explainString;
@@ -1867,11 +1894,17 @@ public class StmtExecutor {
         } else if (isSchedulerExplain) {
             // Do nothing.
         } else if (stmt.isExplain()) {
-            handleExplainStmt(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.INSERT));
+            handleExplainStmt(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.INSERT,
+                    parsedStmt.getExplainLevel()));
             return;
         }
+
         if (context.getQueryDetail() != null) {
-            context.getQueryDetail().setExplain(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.INSERT));
+            StatementBase.ExplainLevel level = AnalyzerUtils.hasExternalTables(parsedStmt) ?
+                    StatementBase.ExplainLevel.defaultValue() :
+                    StatementBase.ExplainLevel.parse(Config.query_detail_explain_level);
+            context.getQueryDetail().setExplain(buildExplainString(execPlan, ResourceGroupClassifier.QueryType.INSERT,
+                    level));
         }
 
         // special handling for delete of non-primary key table, using old handler
